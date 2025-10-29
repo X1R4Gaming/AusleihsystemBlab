@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nummern im Local Storage speichern</title>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans+Rounded:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="feedback" class="feedback"></div>
+    <div id="tutorial" class="tutorial"></div>
+    
+    <main>
+        <h1>Nummern im Local Storage speichern</h1>
+        <button onclick="openTutorial()" class="tutorial-button">Tutorial anzeigen</button>
+        
+        <div class="input-group">
+            <label for="number1">Nummer 1:</label>
+            <input type="number" id="number1" required>
+        </div>
+        
+        <div class="input-group">
+            <label for="number2">Nummer 2:</label>
+            <input type="number" id="number2" required>
+        </div>
+        
+        <div class="button-group">
+            <button onclick="saveNumbers()">Speichern</button>
+            <button onclick="loadNumbers()">Laden</button>
+            <button onclick="openBarcodeScanner()">Barcode scannen</button>
+        </div>
+        
+        <h2>Nummer zum Löschen:</h2>
+        <div class="input-group">
+            <label for="deleteNumber">Nummer:</label>
+            <input type="number" id="deleteNumber" required>
+        </div>
+        
+        <div class="button-group">
+            <button onclick="deleteNumber()">Löschen</button>
+            <button onclick="openBarcodeScanner()">Barcode scannen</button>
+        </div>
+        
+        <div class="output-container">
+            <div class="output-header">
+                <h2 class="output-title">Gespeicherte Kombinationen</h2>
+                <button onclick="copyToClipboard()">Kopieren</button>
+            </div>
+            <div id="output" class="output-content">
+                <p class="no-data">Keine Daten vorhanden. Bitte speichern Sie Kombinationen.</p>
+            </div>
+        </div>
+    </main>
+
+    <div id="barcode-scanner">
+        <div id="barcode-scanner-content">
+            <video id="barcode-video" autoplay></video>
+            <div class="scanner-controls">
+                <div class="scanner-control">
+                    <label for="scanner-target">Zahl zum Scannen:</label>
+                    <select id="scanner-target">
+                        <option value="number1">Nummer 1</option>
+                        <option value="number2">Nummer 2</option>
+                        <option value="deleteNumber">Nummer zum Löschen</option>
+                    </select>
+                </div>
+                <div class="camera-selector">
+                    <label for="camera-select">Kamera wählen:</label>
+                    <select id="camera-select"></select>
+                </div>
+                <div class="button-group">
+                    <button onclick="changeCamera()">Kamera wechseln</button>
+                    <button onclick="closeBarcodeScanner()">Scanner schließen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
+    <script src="javascript.js"></script>
+</body>
+</html>
