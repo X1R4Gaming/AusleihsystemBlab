@@ -1,235 +1,271 @@
-document.fonts.ready.then(() => {
-    // Schriftart ist geladen, jetzt können wir die Seite anzeigen
-});
+/* ==========================================================
+   Ausleih‑System – javascript.js
+   ========================================================== */
 
-// Tutorial-Inhalt direkt in der JS-Datei speichern
-const tutorialContent = `
-<div id="tutorial-content">
-    <h3>Anleitung zum Speichern und Löschen von Einträgen:</h3>
-    <h4>Speichern:</h4>
-    <ol>
-        <li>Öffne die Webseite.</li>
-        <li>Gebe die gewünschten Zahlen in die Felder ein.</li>
-        <li>Klicke auf "Speichern".</li>
-        <li>Überprüfe die aktualisierte Liste.</li>
-    </ol>
-    <h4>Löschen:</h4>
-    <ol>
-        <li>Öffne die Webseite.</li>
-        <li>Gebe die Nummer ein, die du löschen möchtest.</li>
-        <li>Klicke auf "Löschen".</li>
-        <li>Überprüfe die aktualisierte Liste.</li>
-    </ol>
-    <button onclick="closeTutorial()">Schließen</button>
-</div>
-`;
+/* -------------------- Konfiguration & Konstanten -------------------- */
+const STORAGE_KEY = 'ausleih_kombinationen';
+let codeReader = null;
+let currentCameraId = null;
 
-let currentCodeReader = null;
-let currentDeviceId = null;
-let videoInputDevices = [];
+/* ------------------------ DOM‑Referenzen ------------------------ */
+const $feedback    = document.getElementById('feedback');
+const $tutorial    = document.getElementById('tutorial');
+const $output      = document.getElementById('output');
+const $barcodeScanner = document.getElementById('barcode-scanner');
 
-function showFeedback(message, type) {
-    const feedback = document.getElementById('feedback');
-    feedback.textContent = message;
-    feedback.className = `feedback ${type}`;
-    feedback.style.display = 'block';
-    setTimeout(() => {
-        feedback.style.display = 'none';
-    }, 3000);
+/* Eingabefelder */
+const $ausweisnummer  = document.getElementById('ausweisnummer');
+const $laptopnummer   = document.getElementById('laptopnummer');
+const $deleteNumber   = document.getElementById('deleteNumber');
+
+/* Buttons (IDs für eindeutige Zuordnung) */
+const $tutorialBtn     = document.getElementById('tutorialBtn');
+const $saveBtn         = document.getElementById('saveBtn');
+const $loadBtn         = document.getElementById('loadBtn');
+const $deleteBtn       = document.getElementById('deleteBtn');
+const $copyBtn         = document.getElementById('copyBtn');
+
+/* Barcode‑Scanner‑Kontrolle */
+const $cameraSelect    = document.getElementById('camera-select');
+const $changeCameraBtn = document.getElementById('changeCameraBtn');
+const $closeScannerBtn = document.getElementById('closeScannerBtn');
+
+/* ------------------------ Hilfsfunktionen ----------------------- */
+
+/**
+ * Zeigt ein Feedback‑Overlay an.
+ */
+function showFeedback(msg, type) {
+    $feedback.textContent = msg;
+    $feedback.className  = `feedback ${type}`;
+    $feedback.style.display = 'block';
+    setTimeout(() => ($feedback.style.display = 'none'), 3000);
 }
 
-function openTutorial() {
-    const tutorial = document.getElementById('tutorial');
-    tutorial.innerHTML = tutorialContent;
-    tutorial.style.display = 'block';
+/**
+ * Holt Daten aus localStorage (JSON → Array).
+ */
+function loadFromLocalStorage() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
 }
 
-function closeTutorial() {
-    document.getElementById('tutorial').style.display = 'none';
+/**
+ * Speichert ein Array in localStorage.
+ */
+function saveToLocalStorage(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-function openBarcodeScanner() {
-    const barcodeScanner = document.getElementById('barcode-scanner');
-    barcodeScanner.style.display = 'block';
-
-    const video = document.getElementById('barcode-video');
-    const codeReader = new ZXing.BrowserBarcodeReader();
-
-    codeReader.getVideoInputDevices()
-        .then(devices => {
-            videoInputDevices = devices;
-            if (devices.length === 0) {
-                showFeedback('Keine Kamera gefunden!', 'error');
-                return;
-            }
-
-            const cameraSelect = document.getElementById('camera-select');
-            cameraSelect.innerHTML = '';
-            devices.forEach((device, index) => {
-                const option = document.createElement('option');
-                option.value = device.deviceId;
-                option.text = device.label || `Kamera ${index + 1}`;
-                cameraSelect.appendChild(option);
-            });
-
-            currentDeviceId = devices[0].deviceId;
-            currentCodeReader = codeReader;
-            startScanning(video, codeReader, devices[0].deviceId);
-        })
-        .catch(err => {
-            showFeedback(`Fehler beim Zugriff auf die Kamera: ${err.message}`, 'error');
-        });
-}
-
-function startScanning(video, codeReader, deviceId) {
-    codeReader.decodeFromVideoDevice(deviceId, video, (result, err) => {
-        if (result) {
-            const inputField = document.getElementById(document.getElementById('scanner-target').value);
-            inputField.value = result.text;
-            codeReader.reset();
-            closeBarcodeScanner();
-        }
-        if (err && !(err instanceof ZXing.NotFoundException)) {
-            showFeedback(`Fehler beim Scannen: ${err.message}`, 'error');
-            codeReader.reset();
-            closeBarcodeScanner();
-        }
+/**
+ * Zeigt die gespeicherten Kombinationen an.
+ */
+function displayCombinations() {
+    const combos = loadFromLocalStorage();
+    if (!combos.length) {
+        $output.innerHTML =
+            '<p class="no-data">Keine Daten vorhanden. Bitte speichern Sie Kombinationen.</p>';
+        return;
+    }
+    const ul = document.createElement('ul');
+    combos.forEach((c, i) => {
+        const li = document.createElement('li');
+        li.textContent = `${i + 1}. Ausweis: ${c.ausweis}, Laptop: ${c.laptop}`;
+        ul.appendChild(li);
     });
+    $output.innerHTML = '';
+    $output.appendChild(ul);
 }
 
-function changeCamera() {
-    if (videoInputDevices.length === 0) return;
-
-    const cameraSelect = document.getElementById('camera-select');
-    const selectedDeviceId = cameraSelect.value;
-
-    if (selectedDeviceId === currentDeviceId) return;
-
-    currentDeviceId = selectedDeviceId;
-    const video = document.getElementById('barcode-video');
-
-    if (currentCodeReader) {
-        currentCodeReader.reset();
-    }
-
-    currentCodeReader = new ZXing.BrowserBarcodeReader();
-    startScanning(video, currentCodeReader, selectedDeviceId);
+/**
+ * Kopiert die aktuelle Liste in die Zwischenablage.
+ */
+function copyToClipboard() {
+    const text = Array.from($output.querySelectorAll('li'))
+                      .map(li => li.textContent)
+                      .join('\n');
+    navigator.clipboard.writeText(text).then(
+        () => showFeedback('Liste kopiert', 'success'),
+        err => showFeedback(`Kopieren fehlgeschlagen: ${err}`, 'error')
+    );
 }
 
-function closeBarcodeScanner() {
-    document.getElementById('barcode-scanner').style.display = 'none';
-
-    if (currentCodeReader) {
-        currentCodeReader.reset();
-        currentCodeReader = null;
-    }
-}
+/* ------------------------ CRUD‑Operationen ----------------------- */
 
 function saveNumbers() {
-    const number1 = document.getElementById('number1').value.trim();
-    const number2 = document.getElementById('number2').value.trim();
+    const ausweis = Number($ausweisnummer.value);
+    const laptop  = Number($laptopnummer.value);
 
-    if (number1 && number2) {
-        const combinations = JSON.parse(localStorage.getItem('combinations')) || [];
-        const isNumber2Duplicate = combinations.some(combination => combination.number2 === number2);
-
-        if (isNumber2Duplicate) {
-            showFeedback('Die zweite Nummer darf nicht mehrmals vorkommen!', 'error');
-            return;
-        }
-
-        const combination = { number1, number2 };
-        combinations.push(combination);
-        localStorage.setItem('combinations', JSON.stringify(combinations));
-        showFeedback('Kombination gespeichert!', 'success');
-        displayCombinations();
-    } else {
-        showFeedback('Bitte beide Nummern eingeben!', 'error');
+    if (!Number.isFinite(ausweis) || !Number.isFinite(laptop)) {
+        return showFeedback('Bitte gültige Zahlen eingeben', 'error');
     }
+
+    const combos = loadFromLocalStorage();
+    combos.push({ ausweis, laptop });
+    saveToLocalStorage(combos);
+    displayCombinations();
+
+    // Felder zurücksetzen
+    $ausweisnummer.value  = '';
+    $laptopnummer.value   = '';
+
+    showFeedback('Kombination gespeichert', 'success');
 }
 
 function loadNumbers() {
-    const combinations = JSON.parse(localStorage.getItem('combinations')) || [];
-    if (combinations.length > 0) {
-        displayCombinations();
-    } else {
-        showFeedback('Keine Kombinationen gefunden!', 'error');
-    }
+    displayCombinations();
+    showFeedback('Liste geladen', 'success');
 }
 
 function deleteNumber() {
-    const deleteNum = document.getElementById('deleteNumber').value.trim();
-    if (deleteNum) {
-        const combinations = JSON.parse(localStorage.getItem('combinations')) || [];
-        const updatedCombinations = combinations.filter(combination => combination.number2 !== deleteNum);
-        if (updatedCombinations.length < combinations.length) {
-            localStorage.setItem('combinations', JSON.stringify(updatedCombinations));
-            showFeedback('Kombination gelöscht!', 'success');
-            displayCombinations();
-        } else {
-            showFeedback('Keine passende Kombination gefunden!', 'error');
-        }
-    } else {
-        showFeedback('Bitte eine Nummer zum Löschen eingeben!', 'error');
+    const del = Number($deleteNumber.value);
+    if (!Number.isFinite(del)) return showFeedback('Bitte gültige Nummer eingeben', 'error');
+
+    let combos = loadFromLocalStorage();
+    const before = combos.length;
+    combos = combos.filter(c => !(c.ausweis === del || c.laptop === del));
+
+    if (combos.length === before) {
+        return showFeedback(`Keine Kombination mit ${del} gefunden`, 'error');
+    }
+
+    saveToLocalStorage(combos);
+    displayCombinations();
+    $deleteNumber.value = '';
+    showFeedback('Kombination(en) gelöscht', 'success');
+}
+
+/* ------------------------ Tutorial‑Handling ----------------------- */
+
+/**
+ * Lädt den Inhalt von `tutorial.html` per Fetch und zeigt ihn an.
+ */
+async function openTutorial() {
+    try {
+        const res = await fetch('tutorial.html');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        $tutorial.innerHTML = await res.text();
+        $tutorial.style.display = 'block';
+
+        // Schließen‑Button im geladenen Tutorial
+        document.getElementById('closeTutorialBtn')
+                .addEventListener('click', closeTutorial);
+    } catch (err) {
+        showFeedback(`Tutorial laden fehlgeschlagen: ${err}`, 'error');
     }
 }
 
-function displayCombinations() {
-    const combinations = JSON.parse(localStorage.getItem('combinations')) || [];
-    const output = document.getElementById('output');
+function closeTutorial() {
+    $tutorial.style.display = 'none';
+}
 
-    // Clear previous output
-    output.innerHTML = ''; 
+/* ------------------------ Barcode‑Scanner ----------------------- */
 
-    const list = document.createElement('ul');
-    list.className = 'combinations-list';
+async function openBarcodeScanner() {
+    $barcodeScanner.style.display = 'block';
 
-    if (combinations.length > 0) {
-        combinations.forEach((combination, index) => {
-            const item = document.createElement('li');
-            item.className = 'combination-item';
+    // Falls bereits ein Reader existiert, stoppen wir ihn
+    stopScanning();
 
-            const header = document.createElement('div');
-            header.className = 'combination-header';
-            header.textContent = `Kombination ${index + 1}`;
+    codeReader = new ZXing.BrowserBarcodeReader();
+    try {
+        const devices = await codeReader.getVideoInputDevices();
+        if (!devices.length) throw new Error('Keine Kamera gefunden');
 
-            const details = document.createElement('div');
-            details.className = 'combination-details';
-
-            const detail1 = document.createElement('div');
-            detail1.className = 'combination-detail';
-            detail1.textContent = `Nummer 1: ${combination.number1}`;
-
-            const detail2 = document.createElement('div');
-            detail2.className = 'combination-detail';
-            detail2.textContent = `Nummer 2: ${combination.number2}`;
-
-            details.appendChild(detail1);
-            details.appendChild(detail2);
-            item.appendChild(header);
-            item.appendChild(details);
-            list.appendChild(item);
+        // Select füllen
+        $cameraSelect.innerHTML = '';
+        devices.forEach((dev, i) => {
+            const opt = document.createElement('option');
+            opt.value = dev.deviceId;
+            opt.textContent = dev.label || `Kamera ${i + 1}`;
+            $cameraSelect.appendChild(opt);
         });
-        output.appendChild(list);
-        const noDataElement = output.querySelector('.no-data');
-        if (noDataElement) {
-            noDataElement.style.display = 'none'; // Überprüfen, ob das Element existiert
-        }
-    } else {
-        output.innerHTML = '<p class="no-data">Keine Daten vorhanden. Bitte speichern Sie Kombinationen.</p>';
+
+        currentCameraId = devices[0].deviceId;
+
+        // Event‑Listener für Kamera‑Wechsel
+        $changeCameraBtn.onclick = changeCamera;
+        $closeScannerBtn.onclick = closeBarcodeScanner;
+
+        startScanning(currentCameraId);
+    } catch (err) {
+        showFeedback(`Scanner‑Fehler: ${err.message}`, 'error');
     }
 }
 
-function copyToClipboard() {
-    const output = document.getElementById('output');
-    const textToCopy = output.innerText;
-
-    navigator.clipboard.writeText(textToCopy).then(() => {
-        showFeedback('Inhalt kopiert!', 'success');
-    }).catch(err => {
-        showFeedback(`Fehler beim Kopieren: ${err}`, 'error');
-    });
+function stopScanning() {
+    const video = document.getElementById('barcode-video');
+    if (video && video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+    }
 }
 
-// Initial load
-displayCombinations();
+async function startScanning(deviceId) {
+    try {
+        await codeReader.decodeFromVideoDevice(
+            deviceId,
+            'barcode-video',
+            (result, err) => {
+                if (err && !(err instanceof ZXing.NotFoundException)) {
+                    console.error(err);
+                    return;
+                }
+                if (!result) return; // keine Lesung
+
+                handleScanResult(result.text);
+                stopScanning();          // nach Erfolg stoppen
+                $barcodeScanner.style.display = 'none';
+            }
+        );
+    } catch (err) {
+        showFeedback(`Scanner‑Fehler: ${err.message}`, 'error');
+    }
+}
+
+function changeCamera() {
+    const newId = $cameraSelect.value;
+    if (!newId || newId === currentCameraId) return;
+
+    stopScanning();
+    currentCameraId = newId;
+    startScanning(currentCameraId);
+}
+
+function closeBarcodeScanner() {
+    stopScanning();
+    $barcodeScanner.style.display = 'none';
+}
+
+/**
+ * Schreibt das gescannte Ergebnis in das aktuell fokussierte Feld.
+ * Falls kein Feld aktiv ist, wird die Nummer im Löschfeld eingesetzt.
+ */
+function handleScanResult(code) {
+    const activeEl = document.activeElement;
+    if (activeEl && ['ausweisnummer', 'laptopnummer'].includes(activeEl.id)) {
+        activeEl.value = code;
+    } else {
+        $deleteNumber.value = code;
+    }
+}
+
+/* ------------------------ Event‑Registrierung --------------------- */
+
+document.addEventListener('DOMContentLoaded', () => {
+    // CRUD
+    $saveBtn.onclick   = saveNumbers;
+    $loadBtn.onclick   = loadNumbers;
+    $deleteBtn.onclick = deleteNumber;
+    $copyBtn.onclick   = copyToClipboard;
+
+    // Tutorial
+    $tutorialBtn.onclick = openTutorial;
+
+    // Barcode‑Scanner (alle Buttons mit Klasse .barcodeBtn)
+    document.querySelectorAll('.barcodeBtn')
+             .forEach(btn => btn.addEventListener('click', openBarcodeScanner));
+
+    // Initiale Anzeige
+    displayCombinations();
+});
